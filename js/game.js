@@ -155,6 +155,20 @@ export function updateGame(state, input, dt) {
     for (let i = state.obstacles.length - 1; i >= 0; i--) {
         const obs = state.obstacles[i];
         if (aabbSquare(state.ball, obs)) {
+            // Reflect ball based on which axis has less overlap (shallower penetration)
+            const halfBall = state.ball.size / 2;
+            const halfObs = obs.size / 2;
+            const overlapX = (halfBall + halfObs) - Math.abs(state.ball.x - obs.x);
+            const overlapY = (halfBall + halfObs) - Math.abs(state.ball.y - obs.y);
+
+            if (overlapX < overlapY) {
+                state.ball.vx = -state.ball.vx;
+                state.ball.x += (state.ball.x < obs.x ? -overlapX : overlapX);
+            } else {
+                state.ball.vy = -state.ball.vy;
+                state.ball.y += (state.ball.y < obs.y ? -overlapY : overlapY);
+            }
+
             if (state.callbacks.onBoxHit) state.callbacks.onBoxHit(obs);
             state.obstacles.splice(i, 1);
         }
@@ -172,10 +186,14 @@ function updatePaddles(state, input, dt) {
     p1.y += input.p1Direction * PADDLE.speed * dt;
     p1.y = clamp(p1.y, -halfH + p1.height / 2, halfH - p1.height / 2);
 
-    // Player 2 — mouse (0=top, 1=bottom mapped to world Y)
-    const targetY = halfH - input.p2MouseY * WORLD.height; // 0→top(+halfH), 1→bottom(-halfH)
-    const lerpFactor = 1 - Math.pow(0.001, dt); // smooth exponential lerp
-    p2.y += (targetY - p2.y) * lerpFactor;
+    // Player 2 — arrow keys or mouse (0=top, 1=bottom mapped to world Y)
+    if (input.p2UseMouse) {
+        const targetY = halfH - input.p2MouseY * WORLD.height;
+        const lerpFactor = 1 - Math.pow(0.001, dt);
+        p2.y += (targetY - p2.y) * lerpFactor;
+    } else {
+        p2.y += input.p2Direction * PADDLE.speed * dt;
+    }
     p2.y = clamp(p2.y, -halfH + p2.height / 2, halfH - p2.height / 2);
 }
 

@@ -54,7 +54,7 @@ function drawWaiting() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = CSS_COLORS.dimWhite;
-    ctx.fillText('Player 1: W/S  |  Player 2: Mouse', cx, cy + canvas.height * 0.14);
+    ctx.fillText('Player 1: W/S  |  Player 2: Mouse or \u2191/\u2193', cx, cy + canvas.height * 0.14);
     ctx.restore();
 }
 

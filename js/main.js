@@ -17,14 +17,15 @@ function init() {
     const glCanvas = document.getElementById('gameCanvas');
     const uiCanvas = document.getElementById('uiCanvas');
 
-    // Size canvases
+    // Size canvases at 2x device pixel ratio for sharper rendering
     function resize() {
+        const dpr = window.devicePixelRatio || 1;
         const w = window.innerWidth;
         const h = window.innerHeight;
-        glCanvas.width = w;
-        glCanvas.height = h;
-        uiCanvas.width = w;
-        uiCanvas.height = h;
+        glCanvas.width = w * dpr;
+        glCanvas.height = h * dpr;
+        uiCanvas.width = w * dpr;
+        uiCanvas.height = h * dpr;
     }
     resize();
     window.addEventListener('resize', resize);

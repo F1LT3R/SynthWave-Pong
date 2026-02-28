@@ -7,7 +7,7 @@
 body {
     background: #0a0014;
     overflow: hidden;
-    cursor: none;
+    cursor: default;
     font-family: 'Courier New', monospace;
 }
 

@@ -6,8 +6,10 @@ let program;
 let aPosition;
 let uProjection, uModelView, uColor, uAlpha, uGlow;
 let cubeTriBuffer, cubeLineBuffer, cubeTriCount, cubeLineCount;
-let lineBuffer;
+let sphereTriBuffer, sphereLineBuffer, sphereTriCount, sphereLineCount;
+let lineBuffer, boundaryBuffer, boundaryVertCount;
 let projectionMatrix;
+let ballRotX = 0, ballRotZ = 0, lastFrameTime = 0;
 
 // ---- Matrix helpers (column-major Float32Array(16)) ----
 
@@ -55,6 +57,22 @@ function mat4Multiply(a, b) {
         }
     }
     return r;
+}
+
+function mat4RotateX(angle) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    const m = mat4Identity();
+    m[5] = c; m[6] = s;
+    m[9] = -s; m[10] = c;
+    return m;
+}
+
+function mat4RotateZ(angle) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    const m = mat4Identity();
+    m[0] = c; m[1] = s;
+    m[4] = -s; m[5] = c;
+    return m;
 }
 
 // ---- Cube mesh data ----
@@ -105,6 +123,57 @@ function createCubeLines() {
          s, s,-s,  s, s, s,
         -s, s,-s, -s, s, s,
     ]);
+}
+
+// ---- Sphere mesh data ----
+
+function sphereVert(r, theta, phi) {
+    return [
+        r * Math.sin(theta) * Math.cos(phi),
+        r * Math.cos(theta),
+        r * Math.sin(theta) * Math.sin(phi),
+    ];
+}
+
+function createSphereTriangles(segs, rings) {
+    const verts = [];
+    for (let r = 0; r < rings; r++) {
+        const t1 = (r / rings) * Math.PI;
+        const t2 = ((r + 1) / rings) * Math.PI;
+        for (let s = 0; s < segs; s++) {
+            const p1 = (s / segs) * 2 * Math.PI;
+            const p2 = ((s + 1) / segs) * 2 * Math.PI;
+            const a = sphereVert(0.5, t1, p1);
+            const b = sphereVert(0.5, t1, p2);
+            const c = sphereVert(0.5, t2, p1);
+            const d = sphereVert(0.5, t2, p2);
+            verts.push(...a, ...b, ...d, ...a, ...d, ...c);
+        }
+    }
+    return new Float32Array(verts);
+}
+
+function createSphereLines(segs, rings) {
+    const verts = [];
+    // Latitude lines
+    for (let r = 1; r < rings; r++) {
+        const t = (r / rings) * Math.PI;
+        for (let s = 0; s < segs; s++) {
+            const p1 = (s / segs) * 2 * Math.PI;
+            const p2 = ((s + 1) / segs) * 2 * Math.PI;
+            verts.push(...sphereVert(0.5, t, p1), ...sphereVert(0.5, t, p2));
+        }
+    }
+    // Longitude lines
+    for (let s = 0; s < segs; s++) {
+        const p = (s / segs) * 2 * Math.PI;
+        for (let r = 0; r < rings; r++) {
+            const t1 = (r / rings) * Math.PI;
+            const t2 = ((r + 1) / rings) * Math.PI;
+            verts.push(...sphereVert(0.5, t1, p), ...sphereVert(0.5, t2, p));
+        }
+    }
+    return new Float32Array(verts);
 }
 
 // ---- Shader compile ----
@@ -165,6 +234,32 @@ export function initRenderer(canvas) {
     gl.bufferData(gl.ARRAY_BUFFER, lineData, gl.STATIC_DRAW);
     cubeLineCount = lineData.length / 3;
 
+    // Sphere buffers
+    const sphereTriData = createSphereTriangles(6, 4);
+    sphereTriBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, sphereTriBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, sphereTriData, gl.STATIC_DRAW);
+    sphereTriCount = sphereTriData.length / 3;
+
+    const sphereLineData = createSphereLines(6, 4);
+    sphereLineBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, sphereLineBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, sphereLineData, gl.STATIC_DRAW);
+    sphereLineCount = sphereLineData.length / 3;
+
+    // Boundary lines (4 edges of the playing field)
+    const hw = WORLD.width / 2, hh = WORLD.height / 2;
+    const bVerts = new Float32Array([
+        -hw, -hh, 0,  hw, -hh, 0,
+         hw, -hh, 0,  hw,  hh, 0,
+         hw,  hh, 0, -hw,  hh, 0,
+        -hw,  hh, 0, -hw, -hh, 0,
+    ]);
+    boundaryBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, boundaryBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, bVerts, gl.STATIC_DRAW);
+    boundaryVertCount = bVerts.length / 3;
+
     // Line buffer for divider
     lineBuffer = gl.createBuffer();
 
@@ -206,6 +301,46 @@ function drawBox(x, y, z, w, h, d, color, faceAlpha, wireAlpha, glow) {
     gl.drawArrays(gl.LINES, 0, cubeLineCount);
 }
 
+function drawSphere(x, y, z, diameter, color, faceAlpha, wireAlpha, glow, rotX, rotZ) {
+    const s = diameter;
+    const t = mat4Translate(x - CAMERA.position[0], y - CAMERA.position[1], z - CAMERA.position[2]);
+    const rz = mat4RotateZ(rotZ);
+    const rx = mat4RotateX(rotX);
+    const sc = mat4Scale(s, s, s);
+    const mv = mat4Multiply(t, mat4Multiply(rz, mat4Multiply(rx, sc)));
+    gl.uniformMatrix4fv(uModelView, false, mv);
+
+    // Filled faces
+    gl.uniform3fv(uColor, color);
+    gl.uniform1f(uAlpha, faceAlpha);
+    gl.uniform1f(uGlow, 0.0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sphereTriBuffer);
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, sphereTriCount);
+
+    // Wireframe (all lines visible)
+    gl.uniform3fv(uColor, color);
+    gl.uniform1f(uAlpha, wireAlpha);
+    gl.uniform1f(uGlow, glow);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sphereLineBuffer);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.LINES, 0, sphereLineCount);
+}
+
+function drawBoundary() {
+    const mv = mat4Translate(-CAMERA.position[0], -CAMERA.position[1], -CAMERA.position[2]);
+    gl.uniformMatrix4fv(uModelView, false, mv);
+    gl.uniform3fv(uColor, COLORS.white);
+    gl.uniform1f(uAlpha, 0.25);
+    gl.uniform1f(uGlow, 0.3);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, boundaryBuffer);
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.LINES, 0, boundaryVertCount);
+}
+
 export function renderFrame(gameState, particles) {
     if (!gl) return;
 
@@ -219,6 +354,9 @@ export function renderFrame(gameState, particles) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(program);
     gl.uniformMatrix4fv(uProjection, false, projectionMatrix);
+
+    // ---- Boundary lines ----
+    drawBoundary();
 
     // ---- Middle divider line (dashed) ----
     drawDivider();
@@ -239,12 +377,21 @@ export function renderFrame(gameState, particles) {
         COLORS.neonCyan, 0.2, 1.0, 0.6
     );
 
-    // ---- Ball ----
+    // ---- Ball (sphere with rolling rotation) ----
     const b = gameState.ball;
-    drawBox(
+    const now = performance.now() / 1000;
+    const dt = lastFrameTime ? now - lastFrameTime : 0;
+    lastFrameTime = now;
+    const radius = BALL.size / 2;
+    if (radius > 0) {
+        ballRotZ -= (b.vx * dt) / radius;
+        ballRotX += (b.vy * dt) / radius;
+    }
+    drawSphere(
         b.x, b.y, 0,
-        BALL.size, BALL.size, BALL.size,
-        COLORS.neonYellow, 0.25, 1.0, 0.8
+        BALL.size,
+        COLORS.neonYellow, 0.2, 1.0, 0.8,
+        ballRotX, ballRotZ
     );
 
     // ---- Obstacles ----
