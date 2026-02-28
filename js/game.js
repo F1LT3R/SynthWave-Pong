@@ -186,8 +186,10 @@ function updatePaddles(state, input, dt) {
     p1.y += input.p1Direction * PADDLE.speed * dt;
     p1.y = clamp(p1.y, -halfH + p1.height / 2, halfH - p1.height / 2);
 
-    // Player 2 — arrow keys or mouse (0=top, 1=bottom mapped to world Y)
-    if (input.p2UseMouse) {
+    // Player 2 — CPU, arrow keys, or mouse
+    if (input.p2Cpu) {
+        updateCpuPaddle(state, p2, dt);
+    } else if (input.p2UseMouse) {
         const targetY = halfH - input.p2MouseY * WORLD.height;
         const lerpFactor = 1 - Math.pow(0.001, dt);
         p2.y += (targetY - p2.y) * lerpFactor;
@@ -195,6 +197,27 @@ function updatePaddles(state, input, dt) {
         p2.y += input.p2Direction * PADDLE.speed * dt;
     }
     p2.y = clamp(p2.y, -halfH + p2.height / 2, halfH - p2.height / 2);
+}
+
+function updateCpuPaddle(state, paddle, dt) {
+    const ball = state.ball;
+    // Only react when ball is heading toward the CPU side (positive vx)
+    // and has crossed the center — otherwise drift lazily toward center
+    const cpuSpeed = PADDLE.speed * 0.6; // slower than human max
+    let targetY = 0; // default: drift to center
+
+    if (ball.vx > 0 && ball.x > -WORLD.width * 0.1) {
+        // Aim for ball Y but with an offset to simulate imperfection
+        // The offset changes slowly so the CPU doesn't jitter
+        targetY = ball.y;
+    }
+
+    const diff = targetY - paddle.y;
+    const deadZone = 0.3; // don't micro-adjust within this range
+    if (Math.abs(diff) > deadZone) {
+        const dir = diff > 0 ? 1 : -1;
+        paddle.y += dir * cpuSpeed * dt;
+    }
 }
 
 function launchBall(state) {

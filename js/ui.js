@@ -55,6 +55,7 @@ function drawWaiting() {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = CSS_COLORS.dimWhite;
     ctx.fillText('Player 1: W/S  |  Player 2: Mouse or \u2191/\u2193', cx, cy + canvas.height * 0.14);
+    ctx.fillText('B: Toggle CPU opponent', cx, cy + canvas.height * 0.20);
     ctx.restore();
 }
 
@@ -87,7 +88,7 @@ function drawPlaying(gameState) {
     ctx.shadowBlur = 15;
     ctx.shadowColor = CSS_COLORS.neonCyan;
     ctx.fillStyle = CSS_COLORS.neonCyan;
-    ctx.fillText('PLAYER 2', cx + canvas.width * 0.15, labelY);
+    ctx.fillText(gameState.cpuMode ? 'CPU' : 'PLAYER 2', cx + canvas.width * 0.15, labelY);
 
     ctx.font = scoreFont;
     ctx.fillText(String(gameState.scores[1]), cx + canvas.width * 0.15, scoreY + canvas.height * 0.02);
@@ -99,7 +100,7 @@ function drawGameOver(gameState) {
     const cy = canvas.height / 2;
     const isP1 = gameState.winner === PLAYER1;
     const winnerColor = isP1 ? CSS_COLORS.neonPink : CSS_COLORS.neonCyan;
-    const winnerName = isP1 ? 'PLAYER 1' : 'PLAYER 2';
+    const winnerName = isP1 ? 'PLAYER 1' : (gameState.cpuMode ? 'CPU' : 'PLAYER 2');
 
     // Winner text
     ctx.save();

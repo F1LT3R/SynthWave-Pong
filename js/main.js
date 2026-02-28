@@ -85,6 +85,7 @@ function init() {
         lastTime = time;
 
         const input = getInput();
+        gameState.cpuMode = input.p2Cpu;
         updateGame(gameState, input, dt);
         updateParticles(dt);
         renderFrame(gameState, getParticles());
