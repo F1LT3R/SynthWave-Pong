@@ -1,5 +1,7 @@
 # SynthWave Pong
 
+[Demo Video](https://www.linkedin.com/posts/algmacd_weekend-fun-with-claude-code-check-out-our-ugcPost-7433572506810191872-Jof3)
+
 A two-player Pong game with a SynthWave Neon Dark aesthetic, built entirely with vanilla JavaScript, WebGL, and the Web Audio API. No dependencies, no build step — just open and play.
 
 ![Theme: neon pink, cyan, yellow, and purple on a dark purple background]
